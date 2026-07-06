@@ -1,0 +1,94 @@
+name: Windows Installer
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed to attach installers to tag releases
+
+jobs:
+  build:
+    name: Build, test & package (Windows x64)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read project version
+        id: version
+        shell: pwsh
+        run: |
+          $m = Select-String -Path CMakeLists.txt -Pattern 'project\(MasterDesk VERSION ([0-9]+\.[0-9]+\.[0-9]+)'
+          $v = $m.Matches[0].Groups[1].Value
+          if (-not $v) { throw "could not parse version from CMakeLists.txt" }
+          "version=$v" >> $env:GITHUB_OUTPUT
+          Write-Host "MasterDesk version: $v"
+
+      - name: Cache JUCE and CLAP sources
+        uses: actions/cache@v4
+        with:
+          path: build/_deps
+          key: deps-windows-${{ hashFiles('CMakeLists.txt') }}
+
+      - name: Configure (MSVC, x64)
+        shell: pwsh
+        run: cmake -B build -A x64 -DMASTERDESK_BUILD_CLAP=ON -DMASTERDESK_BUILD_TESTS=ON
+
+      - name: Build
+        shell: pwsh
+        run: cmake --build build --config Release --target MasterDesk_VST3 MasterDesk_Standalone MasterDesk_CLAP MasterDeskTests --parallel
+
+      - name: Run DSP verification tests
+        shell: pwsh
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Show built artefacts
+        shell: pwsh
+        run: Get-ChildItem -Recurse build/MasterDesk_artefacts/Release | Select-Object FullName
+
+      - name: Build installer (Inno Setup)
+        shell: pwsh
+        run: |
+          $iscc = "iscc"
+          if (-not (Get-Command iscc -ErrorAction SilentlyContinue)) {
+            $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          }
+          & $iscc installer\MasterDesk.iss `
+            /DMyAppVersion=${{ steps.version.outputs.version }} `
+            /DBuildDir=..\build\MasterDesk_artefacts\Release
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed with $LASTEXITCODE" }
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MasterDesk-${{ steps.version.outputs.version }}-Windows-Setup
+          path: installer/Output/*.exe
+          if-no-files-found: error
+
+      - name: Upload raw plugin binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: MasterDesk-${{ steps.version.outputs.version }}-Windows-binaries
+          path: |
+            build/MasterDesk_artefacts/Release/VST3
+            build/MasterDesk_artefacts/Release/CLAP
+            build/MasterDesk_artefacts/Release/Standalone/MasterDesk.exe
+          if-no-files-found: error
+
+      - name: Attach installer to release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $exe = Get-ChildItem installer/Output/*.exe | Select-Object -First 1
+          gh release create "${{ github.ref_name }}" $exe.FullName `
+            --title "MasterDesk ${{ github.ref_name }}" `
+            --generate-notes 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release upload "${{ github.ref_name }}" $exe.FullName --clobber
+          }

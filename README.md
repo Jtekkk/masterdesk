@@ -40,6 +40,27 @@ ctest --test-dir build --output-on-failure   # offline DSP verification
 Options: `MASTERDESK_ENABLE_OPENGL` (default ON) attaches a GPU context to the
 UI; `MASTERDESK_BUILD_TESTS` (default ON) builds the console verification app.
 
+### Windows installer
+
+CI (`.github/workflows/windows-installer.yml`) builds MasterDesk with MSVC on
+every push, runs the DSP test suite, and packages
+`MasterDesk-<version>-Windows-Setup.exe` with Inno Setup — grab it from the
+workflow run's artifacts, or from the GitHub release when a `v*` tag is
+pushed. The installer offers VST3 (→ `C:\Program Files\Common Files\VST3`),
+CLAP (→ `...\Common Files\CLAP`) and the Standalone app as components, and
+leaves user presets in place on uninstall.
+
+To build it locally on a Windows machine instead:
+
+```powershell
+cmake -B build -A x64 -DMASTERDESK_BUILD_CLAP=ON
+cmake --build build --config Release --target MasterDesk_VST3 MasterDesk_Standalone MasterDesk_CLAP
+iscc installer\MasterDesk.iss   # → installer\Output\MasterDesk-*-Setup.exe
+```
+
+The binaries are unsigned, so SmartScreen will warn on first run
+("More info → Run anyway"); code-signing has to happen outside this repo.
+
 ---
 
 ## Controls

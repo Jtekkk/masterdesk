@@ -81,9 +81,11 @@ target_link_libraries(MasterDesk
 
 # ------------------------------------------------------------ CLAP (opt) ----
 if(MASTERDESK_BUILD_CLAP)
+    # pinned past 0.26.0: this revision adds the JUCE >= 8.0.11 include guards
+    # (juce_audio_processors_headless) that JUCE 8.0.14 requires
     FetchContent_Declare(clap-juce-extensions
         GIT_REPOSITORY https://github.com/free-audio/clap-juce-extensions.git
-        GIT_TAG        main)
+        GIT_TAG        16e9d4ca7b1e86c76e04584b2c08e85a764bcda8)
     FetchContent_MakeAvailable(clap-juce-extensions)
     clap_juce_extensions_plugin(TARGET MasterDesk
         CLAP_ID       "com.masterdeskaudio.masterdesk"
