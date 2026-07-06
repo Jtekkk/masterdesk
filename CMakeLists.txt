@@ -6,6 +6,12 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+# Link the MSVC runtime statically: end-user machines frequently lack the
+# VC++ redistributable, and a plugin must not depend on it. Must be set
+# before any targets (JUCE, clap-juce-extensions, plugin) are created;
+# ignored by non-MSVC toolchains. CMP0091 is NEW with CMake >= 3.22.
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
 option(MASTERDESK_BUILD_CLAP    "Also build the CLAP format (fetches clap-juce-extensions)" OFF)
 option(MASTERDESK_BUILD_TESTS   "Build the offline DSP verification tests"                  ON)
 option(MASTERDESK_ENABLE_OPENGL "GPU-accelerated UI rendering where available"              ON)

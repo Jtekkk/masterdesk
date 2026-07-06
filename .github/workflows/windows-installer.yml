@@ -28,11 +28,18 @@ jobs:
           "version=$v" >> $env:GITHUB_OUTPUT
           Write-Host "MasterDesk version: $v"
 
+      # the cached FetchContent subbuilds pin the CMake generator, so the key
+      # must rotate with the runner image or a VS bump poisons every run
+      - name: Runner image id (cache scope)
+        id: img
+        shell: pwsh
+        run: '"image=$env:ImageOS-$env:ImageVersion" >> $env:GITHUB_OUTPUT'
+
       - name: Cache JUCE and CLAP sources
         uses: actions/cache@v4
         with:
           path: build/_deps
-          key: deps-windows-${{ hashFiles('CMakeLists.txt') }}
+          key: deps-${{ steps.img.outputs.image }}-${{ hashFiles('CMakeLists.txt') }}
 
       - name: Configure (MSVC, x64)
         shell: pwsh
